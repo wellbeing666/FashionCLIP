@@ -13,32 +13,55 @@ from fashionclip.core.agent import StylingAgent
 from fashionclip.core.embedding import ClipEmbedder, load_embeddings
 from fashionclip.core.evaluator import OutfitEvaluator
 from fashionclip.core.retriever import FashionRetriever
+from fashionclip.core.vector_db import ChromaFashionRetriever
 
 app = FastAPI(title="FashionCLIP Stylist API", version="0.1.0")
 
 
 class AppState:
     embedder: ClipEmbedder | None = None
-    retriever: FashionRetriever | None = None
+    retriever: Any | None = None
     agent: StylingAgent | None = None
 
 
 state = AppState()
 
 
+def _normalize_optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if cleaned.lower() in {"null", "none", "nan", "undefined"}:
+        return None
+    return cleaned
+
+
 @app.on_event("startup")
 def startup() -> None:
     catalog_path = Path(settings.catalog_csv)
     embedding_path = Path(settings.embedding_npy)
+    vector_db_path = Path(settings.vector_db_path)
 
-    if not catalog_path.exists() or not embedding_path.exists():
+    if not catalog_path.exists():
         return
 
     catalog = pd.read_csv(catalog_path)
-    embeddings = load_embeddings(str(embedding_path))
 
     embedder = ClipEmbedder(settings.clip_model_name)
-    retriever = FashionRetriever(catalog=catalog, embeddings=embeddings)
+    if vector_db_path.exists():
+        retriever = ChromaFashionRetriever(
+            persist_dir=str(vector_db_path),
+            collection_name=settings.vector_collection,
+            catalog=catalog,
+        )
+    elif embedding_path.exists():
+        embeddings = load_embeddings(str(embedding_path))
+        retriever = FashionRetriever(catalog=catalog, embeddings=embeddings)
+    else:
+        return
+
     evaluator = OutfitEvaluator(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
@@ -85,6 +108,11 @@ async def recommend(
         "image_path": str(temp_path),
         "category": base_category,
     }
+
+    season = _normalize_optional(season)
+    occasion = _normalize_optional(occasion)
+    gender = _normalize_optional(gender)
+    usage = _normalize_optional(usage)
 
     result = state.agent.run(
         query_embedding=query_emb,

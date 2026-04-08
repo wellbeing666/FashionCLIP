@@ -6,6 +6,7 @@ This project builds a garment database from datasets like Kaggle Fashion Product
 
 - Build a garment catalog from Kaggle `styles.csv` + product images
 - Create CLIP image embeddings for all catalog items
+- Persist vectors into ChromaDB for scalable similarity search
 - Upload one garment image and provide natural language context (season, occasion)
 - Retrieve top matching complementary categories (bottom, shoes, outerwear, etc.)
 - Generate outfit candidates and return top-5
@@ -15,6 +16,7 @@ This project builds a garment database from datasets like Kaggle Fashion Product
 
 - `scripts/build_catalog.py`: build catalog csv from Kaggle styles or DeepFashion2
 - `scripts/build_embeddings.py`: compute CLIP embeddings
+- `scripts/build_vectordb.py`: ingest vectors into ChromaDB
 - `src/fashionclip/api/main.py`: FastAPI service
 - `src/fashionclip/core/outfit.py`: outfit candidate generation
 - `src/fashionclip/core/evaluator.py`: LLM-based reranking
@@ -37,6 +39,8 @@ OPENAI_MODEL=gpt-4.1-mini
 CLIP_MODEL_NAME=openai/clip-vit-base-patch32
 CATALOG_CSV=data/catalog.csv
 EMBEDDING_NPY=data/embeddings.npy
+VECTOR_DB_PATH=data/chroma
+VECTOR_COLLECTION=fashion_items
 ```
 
 ## 5) Build catalog from Kaggle Fashion Product Images (Small)
@@ -64,9 +68,22 @@ python scripts/build_embeddings.py --catalog-csv data/catalog.csv --out-npy data
 
 ## 7) Start API
 
+Build vector DB first:
+
+```bash
+python scripts/build_vectordb.py --catalog-csv data/catalog.csv --embedding-npy data/embeddings.npy --persist-dir data/chroma --collection fashion_items
+```
+
+Then start API:
+
 ```bash
 uvicorn fashionclip.api.main:app --reload
 ```
+
+Startup behavior:
+
+- If `VECTOR_DB_PATH` exists, API uses ChromaDB retrieval.
+- Otherwise it falls back to `EMBEDDING_NPY` + numpy/sklearn retrieval.
 
 ## 8) Test recommendation API
 

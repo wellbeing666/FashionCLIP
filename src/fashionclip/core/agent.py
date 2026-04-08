@@ -4,11 +4,10 @@ from typing import Any
 
 from fashionclip.core.evaluator import OutfitEvaluator
 from fashionclip.core.outfit import build_outfit_candidates
-from fashionclip.core.retriever import FashionRetriever
 
 
 class StylingAgent:
-    def __init__(self, retriever: FashionRetriever, evaluator: OutfitEvaluator) -> None:
+    def __init__(self, retriever: Any, evaluator: OutfitEvaluator) -> None:
         self.retriever = retriever
         self.evaluator = evaluator
 
